@@ -6,22 +6,24 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from feedgen.feed import FeedGenerator
 
-# Detect manual run from GitHub Actions
+# Detect if this is a manual workflow run
 manual_run = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
 
 URL = "https://sta-russell.cdsbeo.on.ca/apps/news/"
 HASH_FILE = "data/last_hash.txt"
 
 def normalize(text: str) -> str:
+    """Normalize whitespace in text."""
     return " ".join(text.split())
 
 def hash_content(text: str) -> str:
+    """Return SHA256 hash of the given text."""
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 # Ensure data folder exists
 os.makedirs("data", exist_ok=True)
 
-# Fetch content
+# Fetch content from the site
 res = requests.get(
     URL,
     headers={"User-Agent": "RSS-Monitor/1.0"},
@@ -31,7 +33,7 @@ res.raise_for_status()
 
 soup = BeautifulSoup(res.text, "html.parser")
 
-# Target main content if available
+# Target stable main content
 main = soup.find("main")
 content = normalize(main.get_text()) if main else normalize(soup.get_text())
 
@@ -57,17 +59,26 @@ if not manual_run:
 # Create RSS feed
 fg = FeedGenerator()
 fg.title("Change Monitor Feed")
-fg.link(href="https://dustindoucette.github.io/Demo-RSS-Feed", rel="alternate")
-fg.link(href="https://dustindoucette.github.io/Demo-RSS-Feed/rss.xml", rel="self", type="application/rss+xml")
 fg.description("Updates only when content changes")
 
-# Add entry
+# Main site link
+fg.link(href="https://dustindoucette.github.io/Demo-RSS-Feed", rel="alternate")
+
+# Load atom namespace and add self-link
+fg.load_extension('atom')
+fg.atom_link(
+    href="https://dustindoucette.github.io/Demo-RSS-Feed/rss.xml",
+    rel="self",
+    type="application/rss+xml"
+)
+
+# Add feed entry
 fe = fg.add_entry()
 fe.title("Content Updated")
 fe.link(href=URL)
-fe.description(f"<![CDATA[{content[:1000]}…]]>")  # wrap in CDATA for special characters
+fe.description(content[:1000] + "…", type="CDATA")  # Proper CDATA handling
 fe.pubDate(datetime.now(ZoneInfo("America/Toronto")))
-fe.guid(new_hash, permalink=False)  # unique identifier
+fe.guid(new_hash, permalink=False)
 
-# Write RSS file to root (for GitHub Pages)
+# Write RSS file to repo root for GitHub Pages
 fg.rss_file("rss.xml")
