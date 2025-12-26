@@ -3,6 +3,7 @@ import os
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from feedgen.feed import FeedGenerator
 
 URL = "https://sta-russell.cdsbeo.on.ca/apps/news/"
@@ -57,6 +58,6 @@ fe = fg.add_entry()
 fe.title("Content Updated")
 fe.link(href=URL)
 fe.description(content[:1000] + "…")
-fe.pubDate(datetime.utcnow())
+fe.pubDate(datetime.now(ZoneInfo("America/Toronto")))
 
 fg.rss_file(RSS_FILE)
