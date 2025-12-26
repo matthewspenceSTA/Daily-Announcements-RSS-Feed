@@ -8,7 +8,6 @@ from feedgen.feed import FeedGenerator
 
 URL = "https://sta-russell.cdsbeo.on.ca/apps/news/"
 HASH_FILE = "data/last_hash.txt"
-RSS_FILE = "public/rss.xml"
 
 def normalize(text: str) -> str:
     return " ".join(text.split())
@@ -17,7 +16,6 @@ def hash_content(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 os.makedirs("data", exist_ok=True)
-os.makedirs("public", exist_ok=True)
 
 res = requests.get(
     URL,
@@ -60,4 +58,4 @@ fe.link(href=URL)
 fe.description(content[:1000] + "…")
 fe.pubDate(datetime.now(ZoneInfo("America/Toronto")))
 
-fg.rss_file(RSS_FILE)
+fg.rss_file("rss.xml")
