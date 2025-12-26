@@ -23,9 +23,9 @@ jobs:
           pip install requests beautifulsoup4 feedgen
 
       - name: Run extractor
-        run: python scripts/check.py
+        run: python scripts/GenerateRSSContent.py
 
-      - name: Commit and push if changed
+      - name: Commit and push if changes detected
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
