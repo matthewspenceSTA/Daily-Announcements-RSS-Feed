@@ -1,7 +1,7 @@
 import hashlib
 import os
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from feedgen.feed import FeedGenerator
@@ -19,6 +19,9 @@ def hash_content(text: str) -> str:
 
 os.makedirs("data", exist_ok=True)
 
+# ---------------------------
+# Fetch page
+# ---------------------------
 res = requests.get(
     URL,
     headers={"User-Agent": "RSS-Monitor/1.0"},
@@ -32,34 +35,39 @@ main = soup.find("main")
 if not main:
     raise RuntimeError("Main content not found")
 
-# ----------------------------------
-# Extract announcements (robust)
-# ----------------------------------
+# ---------------------------
+# Extract sections:
+# header -> paragraphs until next header
+# ---------------------------
 articles = []
 
-for block in main.find_all("div"):
-    strong = block.find("strong")
-    if not strong:
-        continue
+headers = main.find_all(["h1", "h2", "h3"])
 
-    title = normalize(strong.get_text())
-    full_text = normalize(block.get_text())
+for header in headers:
+    title = normalize(header.get_text())
+    paragraphs = []
 
-    # Remove title from description
-    description = full_text.replace(title, "").strip()
+    for sibling in header.next_siblings:
+        if isinstance(sibling, Tag):
+            if sibling.name in ["h1", "h2", "h3"]:
+                break
+            if sibling.name == "p":
+                paragraphs.append(normalize(sibling.get_text()))
 
-    if title and description and len(description) > 40:
+    description = " ".join(paragraphs)
+
+    if title and description:
         articles.append({
             "title": title,
             "description": description
         })
 
 if not articles:
-    raise RuntimeError("No announcements found (structure may have changed)")
+    raise RuntimeError("No announcements found")
 
-# ----------------------------------
-# Hash content
-# ----------------------------------
+# ---------------------------
+# Hash all extracted content
+# ---------------------------
 hash_source = "".join(a["title"] + a["description"] for a in articles)
 new_hash = hash_content(hash_source)
 
@@ -77,9 +85,9 @@ if not manual_run:
     with open(HASH_FILE, "w") as f:
         f.write(new_hash)
 
-# ----------------------------------
-# Build RSS
-# ----------------------------------
+# ---------------------------
+# Build RSS feed
+# ---------------------------
 fg = FeedGenerator()
 fg.title("STA Russell Announcements")
 fg.description("Latest announcements from STA Russell")
@@ -98,6 +106,9 @@ for article in articles:
     fe.link(href=URL)
     fe.description(article["description"])
     fe.pubDate(now)
-    fe.guid(hash_content(article["title"] + article["description"]), permalink=False)
+    fe.guid(
+        hash_content(article["title"] + article["description"]),
+        permalink=False
+    )
 
 fg.rss_file("rss.xml")
