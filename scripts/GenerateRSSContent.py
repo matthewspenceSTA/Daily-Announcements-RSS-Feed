@@ -76,15 +76,6 @@ if not articles:
     raise RuntimeError("No announcements found")
 
 # ---------------------------
-# Sort articles chronologically based on title (parsed as date)
-# ---------------------------
-def parse_date(title: str):
-    try:
-        return dateparser.parse(title)
-    except Exception:
-        return datetime.min
-
-# ---------------------------
 # Hash content
 # ---------------------------
 hash_source = "".join(a["title"] + a["description"] for a in articles)
