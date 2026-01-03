@@ -6,6 +6,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from feedgen.feed import FeedGenerator
 
+# Detect manual GitHub Actions run
 manual_run = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
 
 URL = "https://sta-russell.cdsbeo.on.ca/apps/pages/index.jsp?uREC_ID=1100697&type=d&pREC_ID=1399309"
@@ -17,6 +18,7 @@ def normalize(text: str) -> str:
 def hash_content(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
+# Ensure data directory exists
 os.makedirs("data", exist_ok=True)
 
 # ---------------------------
@@ -36,8 +38,7 @@ if not main:
     raise RuntimeError("Main content not found")
 
 # ---------------------------
-# Extract sections:
-# header -> paragraphs until next header
+# Extract headers + paragraphs
 # ---------------------------
 articles = []
 
@@ -47,12 +48,16 @@ for header in headers:
     title = normalize(header.get_text())
     paragraphs = []
 
-    for sibling in header.next_siblings:
-        if isinstance(sibling, Tag):
-            if sibling.name in ["h1", "h2", "h3"]:
+    for el in header.next_elements:
+        if isinstance(el, Tag):
+            # Stop at the next header
+            if el.name in ["h1", "h2", "h3"] and el is not header:
                 break
-            if sibling.name == "p":
-                paragraphs.append(normalize(sibling.get_text()))
+            # Collect all paragraphs, even nested
+            if el.name == "p":
+                text = normalize(el.get_text())
+                if text:
+                    paragraphs.append(text)
 
     description = " ".join(paragraphs)
 
@@ -66,7 +71,7 @@ if not articles:
     raise RuntimeError("No announcements found")
 
 # ---------------------------
-# Hash all extracted content
+# Hash extracted content
 # ---------------------------
 hash_source = "".join(a["title"] + a["description"] for a in articles)
 new_hash = hash_content(hash_source)
@@ -75,6 +80,7 @@ old_hash = None
 if os.path.exists(HASH_FILE):
     old_hash = open(HASH_FILE).read().strip()
 
+# Skip update if unchanged (unless manual run)
 if new_hash == old_hash and not manual_run:
     print("No change detected")
     exit(0)
@@ -91,7 +97,11 @@ if not manual_run:
 fg = FeedGenerator()
 fg.title("STA Russell Announcements")
 fg.description("Latest announcements from STA Russell")
+
+# Website link
 fg.link(href=URL, rel="alternate")
+
+# Atom self link (required by some readers)
 fg.link(
     href="https://dustindoucette.github.io/Demo-RSS-Feed/rss.xml",
     rel="self",
@@ -111,4 +121,5 @@ for article in articles:
         permalink=False
     )
 
+# Write RSS file
 fg.rss_file("rss.xml")
