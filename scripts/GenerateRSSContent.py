@@ -112,7 +112,7 @@ fg.title("STA Russell Announcements")
 fg.description("Latest announcements from STA Russell")
 fg.link(href=URL, rel="alternate")
 fg.link(
-    href="https://dustindoucette.github.io/Demo-RSS-Feed/rss.xml",
+    href="https://matthewspencesta.github.io/Daily-Announcements-RSS-Feed/rss.xml",
     rel="self",
     type="application/rss+xml"
 )
