@@ -5,7 +5,8 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from feedgen.feed import FeedGenerator
-from dateutil import parser as dateparser  # pip install python-dateutil
+from dateutil import parser as dateparser
+from xml.dom import minidom
 
 # Detect manual GitHub Actions run
 manual_run = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
@@ -49,9 +50,10 @@ current_paragraphs = []
 for el in main.find_all(True, recursive=True):
     if el.name == "h2":
         if current_title and current_paragraphs:
+            description_html = "".join(f"<p>{p}</p>" for p in current_paragraphs)
             articles.append({
                 "title": normalize(current_title),
-                "description": "\n".join(current_paragraphs)  # keep literal newlines
+                "description": description_html
             })
         current_title = el.get_text(strip=True)
         current_paragraphs = []
@@ -64,9 +66,10 @@ for el in main.find_all(True, recursive=True):
 
 # Add the last section
 if current_title and current_paragraphs:
+    description_html = "".join(f"<p>{p}</p>" for p in current_paragraphs)
     articles.append({
         "title": normalize(current_title),
-        "description": "\n".join(current_paragraphs)
+        "description": description_html
     })
 
 if not articles:
@@ -122,10 +125,19 @@ for article in articles:
     fe = fg.add_entry()
     fe.title(article["title"])
     fe.link(href=URL)
-    # Use CDATA with literal newlines for YoDeck
-    fe.content(article["description"], type="CDATA")
+    # Direct HTML in description, no CDATA
+    fe.description(article["description"])
     fe.pubDate(now)
     fe.guid(hash_content(article["title"] + article["description"]), permalink=False)
 
-# Save RSS
-fg.rss_file("rss.xml")
+# ---------------------------
+# Pretty-print XML and save
+# ---------------------------
+rss_bytes = fg.rss_str(pretty=True)
+dom = minidom.parseString(rss_bytes)
+pretty_xml = dom.toprettyxml(indent="  ", encoding="UTF-8")
+
+with open("rss.xml", "wb") as f:
+    f.write(pretty_xml)
+
+print("RSS feed saved to rss.xml")
