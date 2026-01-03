@@ -1,7 +1,7 @@
 import hashlib
 import os
 import requests
-from bs4 import BeautifulSoup, Tag, NavigableString
+from bs4 import BeautifulSoup, Tag
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from feedgen.feed import FeedGenerator
@@ -19,7 +19,9 @@ def hash_content(text: str) -> str:
 
 os.makedirs("data", exist_ok=True)
 
-# Fetch the page
+# ---------------------------
+# Fetch page
+# ---------------------------
 res = requests.get(
     URL,
     headers={"User-Agent": "RSS-Monitor/1.0"},
@@ -33,34 +35,32 @@ main = soup.find("main")
 if not main:
     raise RuntimeError("Main content not found")
 
-# Extract headings + paragraphs
+# ---------------------------
+# STATE-BASED extraction
+# ---------------------------
 articles = []
 current_title = None
 current_paragraphs = []
 
-# We iterate through all tags in main in order
-for el in main.descendants:
-    # Only consider Tag (not strings directly)
-    if isinstance(el, Tag):
-        # If it's a header <h2> (or any level), treat as a new item
-        if el.name == "h2":
-            # Save the previous one
-            if current_title and current_paragraphs:
-                articles.append({
-                    "title": normalize(current_title),
-                    "description": normalize(" ".join(current_paragraphs))
-                })
-            current_title = el.get_text(strip=True)
-            current_paragraphs = []
-            continue
+for el in main.find_all(True, recursive=True):
+    # New section starts
+    if el.name == "h2":
+        if current_title and current_paragraphs:
+            articles.append({
+                "title": normalize(current_title),
+                "description": normalize(" ".join(current_paragraphs))
+            })
+        current_title = el.get_text(strip=True)
+        current_paragraphs = []
+        continue
 
-        # If it's a paragraph, add its text (if we already have a title)
-        if el.name == "p" and current_title:
-            text = normalize(el.get_text())
-            if text:
-                current_paragraphs.append(text)
+    # Collect paragraphs for the current section
+    if el.name == "p" and current_title:
+        text = normalize(el.get_text())
+        if text:
+            current_paragraphs.append(text)
 
-# Capture the last section
+# Flush last section
 if current_title and current_paragraphs:
     articles.append({
         "title": normalize(current_title),
@@ -68,11 +68,13 @@ if current_title and current_paragraphs:
     })
 
 if not articles:
-    raise RuntimeError("No valid announcements found")
+    raise RuntimeError("No announcements found")
 
-# Hash all content
-hash_src = "".join(a["title"] + a["description"] for a in articles)
-new_hash = hash_content(hash_src)
+# ---------------------------
+# Hash content
+# ---------------------------
+hash_source = "".join(a["title"] + a["description"] for a in articles)
+new_hash = hash_content(hash_source)
 
 old_hash = None
 if os.path.exists(HASH_FILE):
@@ -88,7 +90,9 @@ if not manual_run:
     with open(HASH_FILE, "w") as f:
         f.write(new_hash)
 
-# Build RSS
+# ---------------------------
+# Build RSS feed
+# ---------------------------
 fg = FeedGenerator()
 fg.title("STA Russell Announcements")
 fg.description("Latest announcements from STA Russell")
@@ -107,6 +111,9 @@ for article in articles:
     fe.link(href=URL)
     fe.description(article["description"])
     fe.pubDate(now)
-    fe.guid(hash_content(article["title"] + article["description"]), permalink=False)
+    fe.guid(
+        hash_content(article["title"] + article["description"]),
+        permalink=False
+    )
 
 fg.rss_file("rss.xml")
