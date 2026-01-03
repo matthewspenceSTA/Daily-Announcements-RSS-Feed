@@ -46,9 +46,10 @@ current_paragraphs = []
 for el in main.find_all(True, recursive=True):
     if el.name == "h2":
         if current_title and current_paragraphs:
+            # Wrap each paragraph in <p> tags
             articles.append({
                 "title": normalize(current_title),
-                "description": normalize(" ".join(current_paragraphs))
+                "description": "".join(f"<p>{p}</p>" for p in current_paragraphs)
             })
         current_title = el.get_text(strip=True)
         current_paragraphs = []
@@ -63,7 +64,7 @@ for el in main.find_all(True, recursive=True):
 if current_title and current_paragraphs:
     articles.append({
         "title": normalize(current_title),
-        "description": normalize(" ".join(current_paragraphs))
+        "description": "".join(f"<p>{p}</p>" for p in current_paragraphs)
     })
 
 if not articles:
@@ -119,7 +120,7 @@ for article in articles:
     fe = fg.add_entry()
     fe.title(article["title"])
     fe.link(href=URL)
-    fe.description(article["description"])
+    fe.description(article["description"])  # now with <p> tags
     fe.pubDate(now)
     fe.guid(
         hash_content(article["title"] + article["description"]),
